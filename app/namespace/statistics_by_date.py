@@ -5,13 +5,13 @@ import pandas as pd
 from flask import make_response, jsonify, request
 from flask_restx import Resource, Namespace
 
-from db.models.models import TransactionModel
-from lib.exception import ClientException
-from utils.db_connection import DBSession
+from app.db.models.models import TransactionModel
+from app.lib.exception import ClientException
+from app.utils.db_connection import DBSession
 
 statistics_by_date_api = Namespace(name="StatisticsByDate",
                                    path="/",
-                                   description="StatisticsByDate")
+                                   description="Operations related to spending statistics by date")
 
 
 class StatisticsByDate(Resource):
@@ -20,6 +20,16 @@ class StatisticsByDate(Resource):
 
     @DBSession.class_method
     def get(self, session):
+        """Retrieves spending statistics grouped by date (year, month, day, or quarter).
+
+        Query Parameters:
+            startDate (str, optional): Start date for filtering transactions (YYYY-MM-DD).
+            endDate (str, optional): End date for filtering transactions (YYYY-MM-DD).
+            by (str, required): Grouping period. Must be one of 'year', 'month', 'day', 'quarter'.
+
+        Returns:
+            JSON: A dictionary containing total amount, count, max/min amount, query parameters, and a list of date-wise spending.
+        """
         start_date = request.args.get("startDate", "")
         end_date = request.args.get("endDate", "")
         is_month = request.args.get("by", "") == "month"
@@ -29,7 +39,7 @@ class StatisticsByDate(Resource):
         if request.args.get("by", "") == "" or request.args.get("by", "") not in ["year", "month", "day", "quarter"]:
             raise ClientException(
                 f"'by' is required query parameter. It can be one of {['year', 'month', 'day', 'quarter']}.")
-        trans_records = session.query(TransactionModel)
+        trans_records = session.query(TransactionModel).filter(TransactionModel.type_name == "Sale")
         if start_date != "":
             trans_records = trans_records.filter(
                 TransactionModel.transaction_date > datetime.strptime(start_date, '%Y-%m-%d'))
@@ -39,7 +49,6 @@ class StatisticsByDate(Resource):
         trans_records = trans_records.all()
         trans_json = [i.serialize for i in trans_records]
         trans_df = pd.DataFrame(trans_json)
-        trans_df = trans_df[trans_df.type == "Sale"]
         trans_df["month"] = pd.to_datetime(trans_df['transaction_date']).dt.year.astype(str) + '-' + \
                             pd.to_datetime(trans_df['transaction_date']).dt.month.astype(str)
         trans_df["year"] = pd.DatetimeIndex(trans_df['transaction_date']).year.astype(str)
