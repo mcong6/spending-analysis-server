@@ -13,7 +13,7 @@ This project provides a robust Python-based RESTful API designed for the analysi
 
 *   **Backend:** Python 3.10, Flask, Flask-RESTX, Flask-SQLAlchemy, Psycopg2
 *   **Database:** PostgreSQL
-*   **Environment Management:** Conda
+*   **Environment Management:** Pipenv
 
 ## Getting Started
 
@@ -21,40 +21,32 @@ Follow these instructions to set up and run the project on your local machine fo
 
 ### Prerequisites
 
-*   [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)
 *   [Python 3.10](https://www.python.org/downloads/release/python-3100/)
 *   [PostgreSQL](https://www.postgresql.org/download/)
+*   [Pipenv](https://pipenv.pypa.io/en/latest/)
 
 ### Installation
 
 1.  **Clone the repository:**
 
-    ```bash
-    git clone https://github.com/your_username/bank-statement-py.git
-    cd bank-statement-py/app
-    ```
-
-2.  **Create and activate the Conda environment:**
-
-    The `build.sh` script will create a new Conda environment named `cenv` within the project directory and install all required dependencies from `scripts/environments.yml`.
+2.  **Install dependencies and activate the virtual environment:**
 
     ```bash
-    bash scripts/build.sh
-    conda activate ./cenv
+    pipenv install
+    pipenv shell
     ```
 
 3.  **Set up the PostgreSQL database:**
 
     *   Ensure your PostgreSQL server is running.
     *   Create a new database and a user with credentials that match those configured in `config.py`.
-    *   By default, the application expects a user `services_user` with the password `Newpassword2023` and a database named `postgres`. You can modify `config.py` to use different credentials.
 
 ## Usage
 
-To start the Flask development server, navigate to the `app` directory and execute:
+To start the Flask development server, navigate to the project root directory and execute:
 
 ```bash
-python app.py
+python app/app.py
 ```
 
 The API will be accessible at `http://127.0.0.1:8080`.
@@ -78,24 +70,6 @@ For detailed information on request/response formats and specific endpoint funct
 
 The application utilizes a PostgreSQL database for persistent storage of all transaction-related data. The database schema is managed through SQLAlchemy models, which can be found in the `db/models` directory.
 
-## Built With
-
-*   [Flask](https://flask.palletsprojects.com/) - Web framework
-*   [Flask-RESTX](https://flask-restx.readthedocs.io/) - Extension for building REST APIs
-*   [Flask-SQLAlchemy](https://flask-sqlalchemy.palletsprojects.com/) - SQLAlchemy integration for Flask
-*   [Psycopg2](https://www.psycopg.org/) - PostgreSQL adapter for Python
-*   [Pipenv](https://pipenv.pypa.io/en/latest/) - Python dependency management and virtual environment tool
-
-## Contributing
-
-Please read `CONTRIBUTING.md` for details on our code of conduct, and the process for submitting pull requests to us.
-
 ## License
 
 This project is licensed under the MIT License - see the `LICENSE.md` file for details.
-
-## Acknowledgments
-
-*   Hat tip to anyone whose code was used
-*   Inspiration
-*   etc
