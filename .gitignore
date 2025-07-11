@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pipenv/
+.venv/
+
+# Distribution / packaging
+.eggs/
+*.egg-info/
+dist/
+build/
+wheels/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Specific to this project
+.env.local
+cenv/
+Pipfile.lock
+/local_data
