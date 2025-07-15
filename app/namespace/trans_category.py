@@ -1,126 +1,115 @@
 from http import HTTPStatus
 
-from flask import make_response, jsonify
-from flask_restx import Resource, Namespace, reqparse
+from flask_restx import Resource, Namespace, fields
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models.models import TransactionCategoryModel
 from app.utils.db_connection import DBSession
 
+# --- API Namespace and Model Definition ---
 transaction_category_api = Namespace(name="Transaction Category",
                                      description="Operations related to transaction categories",
-                                     path="/")
+                                     path="/transaction_category")  # Updated base path
 
-category_parser = reqparse.RequestParser()
-category_parser.add_argument('category', type=str, required=True, help='Category name cannot be blank!')
-category_parser.add_argument('description', type=str, required=False, help='Description of the category')
+# Define the data model for consistent input validation and output marshalling
+category_model = transaction_category_api.model('TransactionCategory', {
+    'id': fields.Integer(readonly=True, description='The unique identifier of a category'),
+    'category': fields.String(required=True, description='Category name', example='Groceries'),
+    'description': fields.String(description='Description of the category', example='Weekly food shopping')
+})
 
 
-class TransactionCategory(Resource):
-    def __init__(self, *args, **kwargs):
-        Resource.__init__(*args, **kwargs)
+# --- Resource for the Collection Endpoint (/transaction_category) ---
+@transaction_category_api.route('/')
+class TransactionCategoryList(Resource):
+    """Handles listing all categories and creating new ones."""
 
     @DBSession.class_method
+    @transaction_category_api.marshal_list_with(category_model)
     def get(self, session):
-        """Retrieves all transaction categories.
-
-        Returns:
-            JSON: A list of all transaction categories.
-        """
-        category_records = session.query(TransactionCategoryModel).all()
-        return make_response(jsonify([c.serialize for c in category_records]), HTTPStatus.OK)
+        """Retrieves a list of all transaction categories."""
+        return session.query(TransactionCategoryModel).all()
 
     @DBSession.class_method
+    @transaction_category_api.expect(category_model, validate=True)
+    @transaction_category_api.marshal_with(category_model, code=HTTPStatus.CREATED)
     def post(self, session):
-        """Creates a new transaction category.
-
-        Request Body:
-            category (str, required): The name of the new category.
-            description (str, optional): A description for the new category.
-
-        Returns:
-            JSON: A message indicating success or failure.
-        """
-        args = category_parser.parse_args()
-        category_name = args['category']
-        description = args['description']
+        """Creates a new transaction category."""
+        data = transaction_category_api.payload
+        category_name = data['category']
 
         if session.query(TransactionCategoryModel).filter_by(category=category_name).first():
-            return make_response(jsonify({"message": f"Category '{category_name}' already exists."}),
-                                 HTTPStatus.CONFLICT)
+            # Use api.abort for standard error responses
+            transaction_category_api.abort(HTTPStatus.CONFLICT, f"Category '{category_name}' already exists.")
 
-        new_category = TransactionCategoryModel(category=category_name, description=description)
+        new_category = TransactionCategoryModel(category=category_name, description=data.get('description'))
+
         try:
             session.add(new_category)
             session.commit()
-            return make_response(jsonify({"message": f"Category '{category_name}' created successfully."}),
-                                 HTTPStatus.CREATED)
-        except IntegrityError:
-            session.rollback()
-            return make_response(jsonify({"message": "Database error: Could not create category."}),
-                                 HTTPStatus.INTERNAL_SERVER_ERROR)
+            return new_category, HTTPStatus.CREATED
         except Exception as e:
             session.rollback()
-            return make_response(jsonify({"message": f"An unexpected error occurred: {str(e)}"}),
-                                 HTTPStatus.INTERNAL_SERVER_ERROR)
+            # It's good practice to log the actual error `e` in a real application
+            transaction_category_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                           "Database error: Could not create category.")
+
+
+# --- Resource for the Specific Item Endpoint (/transaction_category/<id>) ---
+@transaction_category_api.route('/<int:category_id>')
+@transaction_category_api.response(HTTPStatus.NOT_FOUND, 'Category not found.')
+@transaction_category_api.param('category_id', 'The unique identifier of the category.')
+class TransactionCategory(Resource):
+    """Handles operations for a single transaction category."""
 
     @DBSession.class_method
-    def put(self, session):
-        """Updates an existing transaction category.
+    @transaction_category_api.marshal_with(category_model)
+    def get(self, session, category_id: int):
+        """Retrieves a specific transaction category by its ID."""
+        category = session.query(TransactionCategoryModel).get(category_id)
+        if not category:
+            transaction_category_api.abort(HTTPStatus.NOT_FOUND, f"Category with id {category_id} not found.")
+        return category
 
-        Request Body:
-            category (str, required): The name of the category to update.
-            description (str, optional): The new description for the category.
-
-        Returns:
-            JSON: A message indicating success or failure.
-        """
-        args = category_parser.parse_args()
-        category_name = args['category']
-        description = args['description']
-
-        category_to_update = session.query(TransactionCategoryModel).filter_by(category=category_name).first()
+    @DBSession.class_method
+    @transaction_category_api.expect(category_model, validate=True)
+    @transaction_category_api.marshal_with(category_model)
+    def put(self, session, category_id: int):
+        """Updates an existing transaction category."""
+        category_to_update = session.query(TransactionCategoryModel).get(category_id)
         if not category_to_update:
-            return make_response(jsonify({"message": f"Category '{category_name}' not found."}), HTTPStatus.NOT_FOUND)
+            transaction_category_api.abort(HTTPStatus.NOT_FOUND, f"Category with id {category_id} not found.")
 
-        category_to_update.description = description
+        data = transaction_category_api.payload
+        category_to_update.category = data['category']
+        category_to_update.description = data.get('description')
+
         try:
             session.commit()
-            return make_response(jsonify({"message": f"Category '{category_name}' updated successfully."}),
-                                 HTTPStatus.OK)
+            return category_to_update
         except Exception as e:
             session.rollback()
-            return make_response(jsonify({"message": f"An unexpected error occurred: {str(e)}"}),
-                                 HTTPStatus.INTERNAL_SERVER_ERROR)
+            transaction_category_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                           "Database error: Could not update category.")
 
     @DBSession.class_method
-    def delete(self, session):
-        """Deletes a transaction category.
-
-        Request Body:
-            category (str, required): The name of the category to delete.
-
-        Returns:
-            JSON: A message indicating success or failure.
-        """
-        args = category_parser.parse_args()
-        category_name = args['category']
-
-        category_to_delete = session.query(TransactionCategoryModel).filter_by(category=category_name).first()
+    @transaction_category_api.response(HTTPStatus.NO_CONTENT, 'Category deleted successfully.')
+    def delete(self, session, category_id: int):
+        """Deletes a transaction category."""
+        category_to_delete = session.query(TransactionCategoryModel).get(category_id)
         if not category_to_delete:
-            return make_response(jsonify({"message": f"Category '{category_name}' not found."}), HTTPStatus.NOT_FOUND)
+            transaction_category_api.abort(HTTPStatus.NOT_FOUND, f"Category with id {category_id} not found.")
 
         try:
             session.delete(category_to_delete)
             session.commit()
-            return make_response(jsonify({"message": f"Category '{category_name}' deleted successfully."}),
-                                 HTTPStatus.OK)
+            # A 204 response should have no body
+            return '', HTTPStatus.NO_CONTENT
         except IntegrityError:
             session.rollback()
-            return make_response(jsonify(
-                {"message": f"Cannot delete category '{category_name}' as it is linked to existing transactions."}),
-                                 HTTPStatus.CONFLICT)
+            transaction_category_api.abort(HTTPStatus.CONFLICT,
+                                           f"Cannot delete category '{category_to_delete.category}' as it is linked to existing transactions.")
         except Exception as e:
             session.rollback()
-            return make_response(jsonify({"message": f"An unexpected error occurred: {str(e)}"}),
-                                 HTTPStatus.INTERNAL_SERVER_ERROR)
+            transaction_category_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                           "Database error: Could not delete category.")

@@ -25,3 +25,4 @@ def init_api(api):
     statistics_by_date_api.add_resource(StatisticsByDate, '/statistics_by_date')
     api.add_namespace(statistics_by_source_api)
     statistics_by_source_api.add_resource(StatisticsBySource, '/statistics_by_source')
+
