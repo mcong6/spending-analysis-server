@@ -1,9 +1,9 @@
 from flask import Flask
 
-from apis import init_api
-from config import envs
-from extension import init_ext, api
-from lib.json_processor import CustomJSONProvider
+from app.apis import init_api
+from app.config import envs
+from app.extension import init_ext, api
+from app.lib.json_processor import CustomJSONProvider
 
 
 def create_app(environment):

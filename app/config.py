@@ -8,7 +8,7 @@ def get_db_uri():
     password = os.environ.get("DB_PASSWORD")
     DB_HOST = os.environ.get("DB_HOST")
     DB_PORT = os.environ.get("DB_PORT")
-    database = "postgres"
+    database = "spendingAnalysis"
     return f"postgresql://{username}:{password}@{DB_HOST}:{DB_PORT}/{database}"
 
 

@@ -1,4 +1,4 @@
-from extension import db
+from app.extension import db
 
 
 class DBSession:
@@ -8,11 +8,10 @@ class DBSession:
             session = db.session()
             try:
                 res = func(session, *args, **kwargs)
+                session.commit()
             except Exception:
                 session.rollback()
                 raise
-            finally:
-                session.commit()
             return res
 
         return inner_func
@@ -23,11 +22,10 @@ class DBSession:
             session = db.session()
             try:
                 res = func(self, session, *args, **kwargs)
+                session.commit()
             except Exception:
                 session.rollback()
                 raise
-            finally:
-                session.commit()
             return res
 
         return inner_func

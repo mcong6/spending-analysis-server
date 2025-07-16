@@ -1,11 +1,11 @@
-from namespace.index import index_api, Index
-from namespace.statistics_by_category import StatisticsByCategory, statistics_by_category_api
-from namespace.statistics_by_date import statistics_by_date_api, StatisticsByDate
-from namespace.statistics_by_source import statistics_by_source_api, StatisticsBySource
-from namespace.trans_category import transaction_category_api, TransactionCategory
-from namespace.trans_source import TransactionSource, transaction_source_api
-from namespace.trans_type import transaction_type_api, TransactionType
-from namespace.transactions import transaction_api, Transaction
+from app.namespace.index import index_api, Index
+from app.namespace.statistics_by_category import StatisticsByCategory, statistics_by_category_api
+from app.namespace.statistics_by_date import statistics_by_date_api, StatisticsByDate
+from app.namespace.statistics_by_source import statistics_by_source_api, StatisticsBySource
+from app.namespace.trans_category import transaction_category_api, TransactionCategory
+from app.namespace.trans_source import TransactionSource, transaction_source_api
+from app.namespace.trans_type import transaction_type_api, TransactionType
+from app.namespace.transactions import transaction_api, Transaction
 
 
 def init_api(api):

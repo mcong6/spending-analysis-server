@@ -1,185 +1,175 @@
 from datetime import datetime, timedelta
 from http import HTTPStatus
 
-from flask import make_response, jsonify, request
-from flask_restx import Resource, Namespace, reqparse
+from flask import request
+from flask_restx import Resource, Namespace, fields
 from sqlalchemy.exc import IntegrityError
 
 from app.constant.system_constants import SYSTEM_USER_NAME
-from app.db.models.models import TransactionModel
+from app.controller.transaction_controller import add_transaction
+from app.db.models.models import TransactionModel, TransactionCategoryModel, TransactionTypeModel, \
+    TransactionSourceModel
+from app.lib.log_utils import logger
 from app.utils.db_connection import DBSession
 
-transaction_api = Namespace(name="Transaction",
-                            path="/",
+transaction_api = Namespace(name="Transactions",
+                            path="/transaction",
                             description="Operations related to financial transactions")
 
-transaction_parser = reqparse.RequestParser()
-transaction_parser.add_argument('transaction_id', type=int, required=True, help='Transaction ID cannot be blank!')
-transaction_parser.add_argument('transaction_date', type=str, required=False, help='Transaction Date')
-transaction_parser.add_argument('description', type=str, required=False, help='Description')
-transaction_parser.add_argument('notes', type=str, required=False, help='Notes')
-transaction_parser.add_argument('category_level1', type=str, required=False, help='Category Level 1')
-transaction_parser.add_argument('category_level2', type=str, required=False, help='Category Level 2')
-transaction_parser.add_argument('type_name', type=str, required=False, help='Transaction Type')
-transaction_parser.add_argument('amount', type=float, required=False, help='Amount')
-transaction_parser.add_argument('source', type=str, required=False, help='Source')
+# --- API Model Definitions ---
+# Model for creating or updating a transaction
+transaction_input_model = transaction_api.model('TransactionInput', {
+    'transaction_date': fields.String(required=True, description='Date of the transaction (MM/DD/YYYY)',
+                                      example='10/27/2023'),
+    'description': fields.String(required=False, description='Transaction description', example='Coffee Shop'),
+    'notes': fields.String(description='Additional notes', example='Meeting with client'),
+    'category_level1': fields.String(required=False, description='Primary category', example='Business'),
+    'category_level2': fields.String(required=False, description='Secondary category', example='Meals'),
+    'type_name': fields.String(required=False, description='Transaction type', example='Expense'),
+    'amount': fields.Float(required=False, description='Transaction amount', example=5.75),
+    'source': fields.String(required=False, description='Source of funds', example='Corporate Card'),
+})
+
+# Model for serializing a transaction as output
+transaction_output_model = transaction_api.model('TransactionOutput', {
+    'transaction_id': fields.Integer(readonly=True, description='The unique identifier of a transaction'),
+    'transaction_date': fields.Date(description='Date of the transaction'),
+    'description': fields.String(description='Transaction description'),
+    'notes': fields.String(description='Additional notes'),
+    'category_level1': fields.String(description='Primary category'),
+    'category_level2': fields.String(description='Secondary category'),
+    'type_name': fields.String(description='Transaction type'),
+    'amount': fields.Float(description='Transaction amount'),
+    'source': fields.String(description='Source of funds'),
+    'modified_at': fields.DateTime(description='Last modification timestamp'),
+})
 
 
-class Transaction(Resource):
-    def __init__(self, *args, **kwargs):
-        Resource.__init__(*args, **kwargs)
+@transaction_api.route('/')
+class TransactionList(Resource):
+    """Handles listing transactions and creating new ones in bulk."""
 
     @DBSession.class_method
+    @transaction_api.marshal_list_with(transaction_output_model)
+    @transaction_api.doc(params={
+        'period': {'description': "Filter by period ('1Mo', '3Mo', '1Yr', etc.) or 'All'. Defaults to 'All'.",
+                   'in': 'query', 'type': 'string'}
+    })
     def get(self, session):
         """Retrieves transaction records, optionally filtered by period.
-
-        Query Parameters:
-            period (str, optional): Filter transactions by period (e.g., '1Mo', '3Mo', '6Mo', '1Yr', '3Yr', '5Yr', 'All'). Defaults to 'All'.
-
-        Returns:
-            JSON: A list of transaction objects.
         """
-        period = request.args.get("period", "All")
-        end_date = datetime.now()
-        if period == '1Mo':
-            start_date = end_date - timedelta(days=30)
-            trans_records = session.query(TransactionModel).filter(
-                TransactionModel.transaction_date >= start_date).all()
-        elif period == '3Mo':
-            start_date = end_date - timedelta(days=90)
-            trans_records = session.query(TransactionModel).filter(
-                TransactionModel.transaction_date >= start_date).all()
-        elif period == '6Mo':
-            start_date = end_date - timedelta(days=180)
-            trans_records = session.query(TransactionModel).filter(
-                TransactionModel.transaction_date >= start_date).all()
-        elif period == '1Yr':
-            start_date = end_date - timedelta(days=365)
-            trans_records = session.query(TransactionModel).filter(
-                TransactionModel.transaction_date >= start_date).all()
-        elif period == '3Yr':
-            start_date = end_date - timedelta(days=365 * 3)
-            trans_records = session.query(TransactionModel).filter(
-                TransactionModel.transaction_date >= start_date).all()
-        elif period == '5Yr':
-            start_date = end_date - timedelta(days=365 * 5)
-            trans_records = session.query(TransactionModel).filter(
-                TransactionModel.transaction_date >= start_date).all()
-        else:
-            trans_records = session.query(TransactionModel).all()
-        response = []
-        for record in trans_records:
-            resp_obj = {
-                "id": record.transaction_id,
-                "Transaction Date": str(record.transaction_date),
-                "Memo": record.notes,
-                "Description": record.description,
-                "category_level1": record.category_level1,
-                "Category": record.category_level2,
-                "Type": record.type_name,
-                "Amount": record.amount,
-                "Source": record.source
-            }
-            response.append(resp_obj)
-        return make_response(jsonify(response), HTTPStatus.OK)
+        period = request.args.get("period", "All").strip()
+        query = session.query(TransactionModel)
+
+        period_map_days = {
+            '1Mo': 30, '3Mo': 90, '6Mo': 180, '1Yr': 365, '3Yr': 1095, '5Yr': 1825
+        }
+        days = period_map_days.get(period)
+        if days:
+            start_date = datetime.now() - timedelta(days=days)
+            query = query.filter(TransactionModel.transaction_date >= start_date)
+
+        return query.order_by(TransactionModel.transaction_date.desc()).all()
 
     @DBSession.class_method
+    @transaction_api.expect([transaction_input_model], validate=True)
     def post(self, session):
-        """Creates one or more new transaction records.
-
-        Request Body (list of dict):
-            transaction_date (str, required): Date of the transaction (YYYY-MM-DD).
-            description (str, required): Description of the transaction.
-            notes (str, optional): Additional notes for the transaction.
-            category_level1 (str, required): Primary category level.
-            category_level2 (str, required): Secondary category level.
-            type (str, required): Type of transaction (e.g., 'Sale', 'Expense').
-            amount (float, required): Amount of the transaction.
-            source (str, required): Source of the transaction (e.g., 'Credit Card', 'Cash').
-
-        Returns:
-            JSON: A message indicating success or failure.
-        """
+        """Creates one or more new transaction records in a single batch."""
         try:
-            request_body = request.json
-            print(request_body)
-            new_trans_list = []
-            for records in request_body:
-                new_trans = TransactionModel(
-                    transaction_date=datetime.strptime(records.get("transaction_date"), '%Y-%m-%d') if records.get(
-                        "transaction_date") else None,
-                    description=records.get("description", ""),
-                    notes=records.get("notes", ""),
-                    category_level1=records.get("category_level1", ""),
-                    category_level2=records.get("category_level2", ""),
-                    type_name=records.get("type", ""),  # Changed 'type' to 'type_name'
-                    amount=records.get("amount", ""),
-                    source=records.get("source", ""),
-                    created_at=datetime.now(),
-                    created_by=SYSTEM_USER_NAME,
-                    modified_at=datetime.now(),
-                    modified_by=SYSTEM_USER_NAME
-                )
-                new_trans_list.append(new_trans)
-                session.add(new_trans)
-            session.commit()
-            return make_response(jsonify(f"Upload files successfully."), HTTPStatus.OK)
+            request_body = transaction_api.payload
+
+            # 1. Collect all unique, non-empty foreign key values from the payload
+            categories = set(d.get('category_level1') for d in request_body if d.get('category_level1'))
+            categories.update(d.get('category_level2') for d in request_body if d.get('category_level2'))
+            types = set(d.get('type_name') for d in request_body if d.get('type_name'))
+            sources = set(d.get('source') for d in request_body if d.get('source'))
+
+            # 2. Find which ones already exist in the database
+            existing_categories = {c.category for c in session.query(TransactionCategoryModel).filter(
+                TransactionCategoryModel.category.in_(categories))}
+            existing_types = {t.type_name for t in
+                              session.query(TransactionTypeModel).filter(TransactionTypeModel.type_name.in_(types))}
+            existing_sources = {s.source for s in session.query(TransactionSourceModel).filter(
+                TransactionSourceModel.source.in_(sources))}
+
+            # 3. Determine which ones are new and add them to the session
+            new_categories = [TransactionCategoryModel(category=c) for c in categories if c not in existing_categories]
+            new_types = [TransactionTypeModel(type_name=t) for t in types if t not in existing_types]
+            new_sources = [TransactionSourceModel(source=s) for s in sources if s not in existing_sources]
+
+            if new_categories:
+                logger.info(f"Creating new categories: {[c.category for c in new_categories]}")
+                session.add_all(new_categories)
+            if new_types:
+                logger.info(f"Creating new types: {[t.type_name for t in new_types]}")
+                session.add_all(new_types)
+            if new_sources:
+                logger.info(f"Creating new sources: {[s.source for s in new_sources]}")
+                session.add_all(new_sources)
+
+            for transaction_data in request_body:
+                add_transaction(session, transaction_data)
+
+            # The DBSession decorator will handle the commit
+            return {'message': f"Successfully processed {len(request_body)} transaction(s)."}, HTTPStatus.CREATED
         except Exception as e:
-            return make_response(jsonify(f"Upload files failed. {str(e)}"), HTTPStatus.BAD_REQUEST)
+            logger.error(f"Create transaction failed: {e}")
+            transaction_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR, f"Could not create transaction: {e}")
+            return {"message": "Create transaction failed"}, HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@transaction_api.route('/<int:transaction_id>')
+@transaction_api.response(HTTPStatus.NOT_FOUND, 'Transaction not found.')
+@transaction_api.param('transaction_id', 'The unique identifier of the transaction.')
+class Transaction(Resource):
+    """Handles operations for a single transaction."""
 
     @DBSession.class_method
-    def put(self, session):
-        """Updates an existing transaction record.
+    @transaction_api.marshal_with(transaction_output_model)
+    def get(self, session, transaction_id: int):
+        """Retrieves a specific transaction by its ID."""
+        transaction = session.query(TransactionModel).get(transaction_id)
+        if not transaction:
+            transaction_api.abort(HTTPStatus.NOT_FOUND, f"Transaction with id {transaction_id} not found.")
+        return transaction
 
-        Request Body:
-            transaction_id (int, required): The ID of the transaction to update.
-            transaction_date (str, optional): New date of the transaction (YYYY-MM-DD).
-            description (str, optional): New description of the transaction.
-            notes (str, optional): New notes for the transaction.
-            category_level1 (str, optional): New primary category level.
-            category_level2 (str, optional): New secondary category level.
-            type_name (str, optional): New type of transaction.
-            amount (float, optional): New amount of the transaction.
-            source (str, optional): New source of the transaction.
-
-        Returns:
-            JSON: A message indicating success or failure.
-        """
-        args = transaction_parser.parse_args()
-        transaction_id = args['transaction_id']
-
-        transaction_to_update = session.query(TransactionModel).filter_by(transaction_id=transaction_id).first()
+    @DBSession.class_method
+    @transaction_api.expect(transaction_input_model, validate=True)
+    @transaction_api.marshal_with(transaction_output_model)
+    def put(self, session, transaction_id: int):
+        """Updates an existing transaction record."""
+        transaction_to_update = session.query(TransactionModel).get(transaction_id)
         if not transaction_to_update:
-            return make_response(jsonify({"message": f"Transaction with ID {transaction_id} not found."}),
-                                 HTTPStatus.NOT_FOUND)
+            transaction_api.abort(HTTPStatus.NOT_FOUND, f"Transaction with id {transaction_id} not found.")
 
-        # Update fields if provided in the request
-        if args['transaction_date']:
-            transaction_to_update.transaction_date = datetime.strptime(args['transaction_date'], '%Y-%m-%d')
-        if args['description']:
-            transaction_to_update.description = args['description']
-        if args['notes']:
-            transaction_to_update.notes = args['notes']
-        if args['category_level1']:
-            transaction_to_update.category_level1 = args['category_level1']
-        if args['category_level2']:
-            transaction_to_update.category_level2 = args['category_level2']
-        if args['type_name']:
-            transaction_to_update.type_name = args['type_name']
-        if args['amount']:
-            transaction_to_update.amount = args['amount']
-        if args['source']:
-            transaction_to_update.source = args['source']
+        data = transaction_api.payload
+        for key, value in data.items():
+            setattr(transaction_to_update, key, value)
 
         transaction_to_update.modified_at = datetime.now()
         transaction_to_update.modified_by = SYSTEM_USER_NAME
 
         try:
             session.commit()
-            return make_response(jsonify({"message": f"Transaction with ID {transaction_id} updated successfully."}),
-                                 HTTPStatus.OK)
-        except IntegrityError:
+            return transaction_to_update
+        except IntegrityError as e:
             session.rollback()
-            return make_response(
-                jsonify({"message": "Database error: Could not update transaction."}),
-                        HTTPStatus.INTERNAL_SERVER_ERROR)
+            transaction_api.abort(HTTPStatus.CONFLICT, f"Database integrity error: {e.orig}")
+        except Exception as e:
+            session.rollback()
+            transaction_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR, f"Could not update transaction: {e}")
+
+    @DBSession.class_method
+    @transaction_api.response(HTTPStatus.NO_CONTENT, 'Transaction deleted successfully.')
+    def delete(self, session, transaction_id: int):
+        """Deletes a transaction record."""
+        transaction_to_delete = session.query(TransactionModel).get(transaction_id)
+        if not transaction_to_delete:
+            transaction_api.abort(HTTPStatus.NOT_FOUND, f"Transaction with id {transaction_id} not found.")
+        try:
+            session.delete(transaction_to_delete)
+            session.commit()
+            return '', HTTPStatus.NO_CONTENT
+        except Exception as e:
+            session.rollback()
+            transaction_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR, f"Could not delete transaction: {e}")
