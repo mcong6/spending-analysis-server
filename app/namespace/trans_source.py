@@ -9,7 +9,7 @@ from app.utils.db_connection import DBSession
 
 transaction_source_api = Namespace(name="Transaction Source",
                                    description="Operations related to transaction sources",
-                                   path="/")
+                                   path="/transaction_source")
 
 source_parser = reqparse.RequestParser()
 source_parser.add_argument('source', type=str, required=True, help='Source name cannot be blank!')

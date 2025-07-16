@@ -5,8 +5,9 @@ from flask_sqlalchemy import SQLAlchemy
 api = Api(version="1.0",
           title="Spending Analysis",
           description="Spending Analysis",
-          prefix="",
-          doc="/swagger")
+          prefix="/api",
+          doc="/swagger",
+          strict_slashes=False)
 
 cors = CORS()
 db = SQLAlchemy()

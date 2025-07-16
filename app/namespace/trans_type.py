@@ -9,7 +9,7 @@ from app.utils.db_connection import DBSession
 
 transaction_type_api = Namespace(name="Transaction Type",
                                  description="Operations related to transaction types",
-                                 path="/")
+                                 path="/transaction_type")
 
 type_parser = reqparse.RequestParser()
 type_parser.add_argument('type_name', type=str, required=True, help='Type name cannot be blank!')

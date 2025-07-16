@@ -11,7 +11,6 @@ def create_app(environment):
     app = Flask(__name__)
     app.config.from_object(envs.get(environment))
     app.json = CustomJSONProvider(app)
-    api.app = app
     init_api(api)
     init_ext(app)
     return app

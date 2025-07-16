@@ -10,7 +10,7 @@ from app.lib.exception import ClientException
 from app.utils.db_connection import DBSession
 
 statistics_by_date_api = Namespace(name="StatisticsByDate",
-                                   path="/",
+                                   path="/statistics_by_date",
                                    description="Operations related to spending statistics by date")
 
 

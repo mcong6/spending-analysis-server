@@ -9,7 +9,7 @@ from app.db.models.models import TransactionModel
 from app.utils.db_connection import DBSession
 
 statistics_by_source_api = Namespace(name="StatisticsBySource",
-                                     path="/",
+                                     path="/statistics_by_source",
                                      description="Operations related to spending statistics by source")
 
 

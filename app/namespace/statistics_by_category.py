@@ -9,7 +9,7 @@ from app.db.models.models import TransactionModel
 from app.utils.db_connection import DBSession
 
 statistics_by_category_api = Namespace(name="StatisticsByCategory",
-                                       path="/",
+                                       path="/statistics_by_category",
                                        description="Operations related to spending statistics by category")
 
 

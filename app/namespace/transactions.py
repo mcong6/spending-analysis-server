@@ -14,7 +14,8 @@ from app.utils.db_connection import DBSession
 
 transaction_api = Namespace(name="Transactions",
                             path="/transaction",
-                            description="Operations related to financial transactions")
+                            description="Operations related to financial transactions",
+                            strict_slashes=False)
 
 # --- API Model Definitions ---
 # Model for creating or updating a transaction
@@ -115,7 +116,6 @@ class TransactionList(Resource):
         except Exception as e:
             logger.error(f"Create transaction failed: {e}")
             transaction_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR, f"Could not create transaction: {e}")
-            return {"message": "Create transaction failed"}, HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @transaction_api.route('/<int:transaction_id>')
@@ -153,10 +153,8 @@ class Transaction(Resource):
             session.commit()
             return transaction_to_update
         except IntegrityError as e:
-            session.rollback()
             transaction_api.abort(HTTPStatus.CONFLICT, f"Database integrity error: {e.orig}")
         except Exception as e:
-            session.rollback()
             transaction_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR, f"Could not update transaction: {e}")
 
     @DBSession.class_method
@@ -168,8 +166,6 @@ class Transaction(Resource):
             transaction_api.abort(HTTPStatus.NOT_FOUND, f"Transaction with id {transaction_id} not found.")
         try:
             session.delete(transaction_to_delete)
-            session.commit()
-            return '', HTTPStatus.NO_CONTENT
+            return {"message": f"Transaction with id {transaction_id} deleted successfully."}, HTTPStatus.OK
         except Exception as e:
-            session.rollback()
             transaction_api.abort(HTTPStatus.INTERNAL_SERVER_ERROR, f"Could not delete transaction: {e}")
