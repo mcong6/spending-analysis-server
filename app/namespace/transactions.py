@@ -17,7 +17,6 @@ transaction_api = Namespace(name="Transactions",
                             description="Operations related to financial transactions",
                             strict_slashes=False)
 
-# --- API Model Definitions ---
 # Model for creating or updating a transaction
 transaction_input_model = transaction_api.model('TransactionInput', {
     'transaction_date': fields.String(required=True, description='Date of the transaction (MM/DD/YYYY)',
@@ -46,7 +45,7 @@ transaction_output_model = transaction_api.model('TransactionOutput', {
 })
 
 
-@transaction_api.route('/')
+@transaction_api.route('')
 class TransactionList(Resource):
     """Handles listing transactions and creating new ones in bulk."""
 
